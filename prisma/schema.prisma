@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// #################################     Users         ###############################  
+
+model User {
+  id          String       @id @default(uuid())
+  name        String
+  email       String       @unique
+  password    String
+  japs        Jap[]
+  provider    Provider     @default(EMAIL)
+  role        Role         @default(USERS)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  userProfile UserProfile?
+}
+
+enum Provider {
+  EMAIL
+  GOOGLE
+  GITHUB
+}
+
+enum Role {
+  ADMIN
+  USERS
+}
+
+// #################################     for user profile        ###############################  
+
+model UserProfile {
+  id         String  @id @default(uuid())
+  fullName   String?
+  bio        String?
+  photo      String?
+  aboutJobs  String?
+  headline   String?
+  address    String?
+  phone      String?
+  socialLink String?
+  userId     String  @unique
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// #################################     Jap        ###############################  
+
+model Jap {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  count       Int          @default(0)
+  goal        Int?
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  history     JapHistory[]
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([userId])
+}
+
+// #################################     JapHistory       ###############################  
+
+model JapHistory {
+  id    String   @id @default(uuid())
+  japId String
+  jap   Jap      @relation(fields: [japId], references: [id], onDelete: Cascade)
+  count Int
+  date  DateTime @default(now())
+
+  @@index([japId])
+  @@index([date])
+}
