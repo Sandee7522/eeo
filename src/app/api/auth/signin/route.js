@@ -3,8 +3,8 @@ import { z } from "zod";
 import authServices from "@/services/authService";
 
 const signinSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z.string().email("Please enter a valid email"),
+  password: z.string().min(1, "Password is required"),
 });
 
 export async function POST(req) {
@@ -20,13 +20,23 @@ export async function POST(req) {
       data,
     });
   } catch (error) {
-    console.error("Signin API Error:", error);
+    // 🔥 Zod validation error
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: error.errors[0].message,
+        },
+        { status: 400 },
+      );
+    }
+
     return NextResponse.json(
       {
         success: false,
-        message: error.message,
+        message: error.message || "Login failed",
       },
-      { status: 401 }
+      { status: 401 },
     );
   }
 }

@@ -3,7 +3,7 @@ import { z } from "zod";
 import authServices from "@/services/authService";
 
 const schema = z.object({
-  email: z.string().email(),
+  email: z.string().email("Please enter a valid email"),
 });
 
 export async function POST(req) {
@@ -20,11 +20,23 @@ export async function POST(req) {
         resetToken: result.resetToken,
       }),
     });
+
   } catch (error) {
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: error.errors[0].message,
+        },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       {
         success: false,
-        message: error.message,
+        message: error.message || "Request failed",
       },
       { status: 404 }
     );

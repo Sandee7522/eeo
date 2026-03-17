@@ -12,6 +12,7 @@ const signupSchema = z
       .regex(/[A-Z]/, "Must contain uppercase")
       .regex(/[a-z]/, "Must contain lowercase")
       .regex(/[0-9]/, "Must contain number"),
+    // .regex(/[!@#$%^&*(),.?":{}|<>]/, "Must contain special character"),
     confirmPassword: z.string({
       required_error: "Confirm password is required",
     }),
@@ -20,7 +21,6 @@ const signupSchema = z
     path: ["confirmPassword"],
     message: "Passwords do not match",
   });
-
 
 export async function POST(req) {
   try {
@@ -35,7 +35,7 @@ export async function POST(req) {
         message: "User registered successfully",
         data: result,
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     console.error("Signup API Error:", error);
@@ -47,7 +47,7 @@ export async function POST(req) {
           success: false,
           message: error.errors[0].message,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -56,8 +56,7 @@ export async function POST(req) {
         success: false,
         message: error.message || "Something went wrong",
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 }
-
