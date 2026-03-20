@@ -132,8 +132,14 @@ function Navbar() {
 
         {/* Right controls */}
         <div className="flex items-center gap-2">
-          <div className="hidden md:block">
-            <PrimaryButton href="/dashboard" className="h-9 px-5 text-sm">
+          <div className="hidden items-center gap-2 md:flex">
+            <Link
+              href="/signin"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-400 transition-colors hover:text-white"
+            >
+              Sign In
+            </Link>
+            <PrimaryButton href="/signup" className="h-9 px-5 text-sm">
               Get started
               <ChevronRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5" />
             </PrimaryButton>
@@ -169,7 +175,14 @@ function Navbar() {
                 {label}
               </a>
             ))}
-            <PrimaryButton href="/dashboard" className="mt-2 justify-center h-10">
+            <Link
+              href="/signin"
+              onClick={() => setMobileOpen(false)}
+              className="rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 hover:text-white"
+            >
+              Sign In
+            </Link>
+            <PrimaryButton href="/signup" className="mt-2 justify-center h-10">
               Get started <ChevronRight className="h-4 w-4" />
             </PrimaryButton>
           </nav>
@@ -186,11 +199,11 @@ function Hero() {
     <section className="relative overflow-hidden px-4 pb-20 pt-32 sm:px-6 sm:pt-40 lg:px-8 lg:pb-28 lg:pt-44">
       {/* Ambient glows */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-40 -top-40 h-[600px] w-[600px] rounded-full blur-[120px]"
+        <div className="absolute -left-40 -top-40 h-150 w-150 rounded-full blur-[120px]"
           style={{ background: 'rgba(6,182,212,0.08)' }} />
-        <div className="absolute -right-40 top-20 h-[500px] w-[500px] rounded-full blur-[120px]"
+        <div className="absolute -right-40 top-20 h-125 w-125 rounded-full blur-[120px]"
           style={{ background: 'rgba(59,130,246,0.08)' }} />
-        <div className="absolute bottom-0 left-1/2 h-[300px] w-[600px] -translate-x-1/2 rounded-full blur-[80px]"
+        <div className="absolute bottom-0 left-1/2 h-75 w-150 -translate-x-1/2 rounded-full blur-[80px]"
           style={{ background: 'rgba(6,182,212,0.05)' }} />
       </div>
 
@@ -225,7 +238,7 @@ function Hero() {
         </p>
 
         <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <PrimaryButton href="/dashboard" className="h-12 px-8 text-base">
+          <PrimaryButton href="/signin" className="h-12 px-8 text-base">
             Start scraping free
             <ArrowRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-1" />
           </PrimaryButton>
@@ -333,7 +346,7 @@ function Hero() {
               ].map((row) => (
                 <div
                   key={row.name}
-                  className="grid grid-cols-4 items-center gap-0 px-4 py-3 text-xs last:border-0 transition hover:bg-white/[0.02]"
+                  className="grid grid-cols-4 items-center gap-0 px-4 py-3 text-xs last:border-0 transition hover:bg-white/2"
                   style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}
                 >
                   <span className="font-medium text-white truncate pr-2">{row.name}</span>
@@ -628,7 +641,7 @@ function ExportSection() {
             </div>
             <div className="shrink-0">
               <Link
-                href="/dashboard"
+                href="/signin"
                 className="group inline-flex items-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-bold text-cyan-700 shadow-xl shadow-black/20 transition-all duration-200 hover:scale-[1.03] hover:shadow-2xl active:scale-[0.98]"
               >
                 Start exporting free
@@ -735,7 +748,7 @@ function FinalCTA() {
         <p className="mb-8 text-lg text-slate-400">
           No setup. No credit card. Just enter a query and watch the leads roll in.
         </p>
-        <PrimaryButton href="/dashboard" className="h-14 px-10 text-base">
+        <PrimaryButton href="/signin" className="h-14 px-10 text-base">
           Get started for free
           <ArrowRight className="h-5 w-5 transition-transform duration-150 group-hover:translate-x-1" />
         </PrimaryButton>

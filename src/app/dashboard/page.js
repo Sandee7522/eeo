@@ -18,15 +18,23 @@ import {
   X,
   ArrowLeft,
   History,
+  LogOut,
+  User,
+  Search,
 } from "lucide-react";
 import {
   fetchCompanies,
   startScrape,
   deleteCompany,
   fetchHistory,
+  exportCompanies,
+  getAllCompanyIds,
 } from "@/app/lib/dashboardApi";
+import { logoutApi, isAuthenticated, getCurrentUser } from "@/app/lib/authApi";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 
-const LIMIT = 5;
+const COMPANY_LIMIT = 10;
+const HISTORY_LIMIT = 5;
 
 const MAX_RESULTS_OPTIONS = [5, 10, 20, 50, 100];
 
@@ -97,6 +105,27 @@ const RATING_OPTIONS = [
 
 export default function DashboardPage() {
   const router = useRouter();
+  const [user, setUser] = useState(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  // ── Auth guard ──
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.push("/signin");
+      return;
+    }
+    setUser(getCurrentUser());
+  }, [router]);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logoutApi();
+    } catch {
+      // Clear session anyway
+    }
+    router.push("/signin");
+  };
 
   // ── Scrape form ──
   const [queryType, setQueryType] = useState("");
@@ -109,7 +138,7 @@ export default function DashboardPage() {
 
   // ── Companies table ──
   const [companies, setCompanies] = useState([]);
-  const [companyMeta, setCompanyMeta] = useState({ page: 1, pageSize: LIMIT, totalCount: 0, totalPages: 1 });
+  const [companyMeta, setCompanyMeta] = useState({ page: 1, pageSize: COMPANY_LIMIT, totalCount: 0, totalPages: 1 });
   const [companyPage, setCompanyPage] = useState(1);
   const [companyLoading, setCompanyLoading] = useState(false);
   const [companyError, setCompanyError] = useState(null);
@@ -125,9 +154,65 @@ export default function DashboardPage() {
 
   // ── History table ──
   const [historyData, setHistoryData] = useState([]);
-  const [historyMeta, setHistoryMeta] = useState({ page: 1, pageSize: LIMIT, totalCount: 0, totalPages: 1 });
+  const [historyMeta, setHistoryMeta] = useState({ page: 1, pageSize: HISTORY_LIMIT, totalCount: 0, totalPages: 1 });
   const [historyPage, setHistoryPage] = useState(1);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // ── Search (live) ──
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+      setCompanyPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // ── Selection ──
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [exporting, setExporting] = useState(false);
+
+  const [selectingAll, setSelectingAll] = useState(false);
+  const allSelected = selectedIds.size > 0 && selectedIds.size >= companyMeta.totalCount;
+  const pageAllSelected = companies.length > 0 && companies.every((c) => selectedIds.has(c.id));
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = async () => {
+    if (allSelected || pageAllSelected) {
+      // Deselect all
+      setSelectedIds(new Set());
+    } else {
+      // Fetch ALL IDs from backend and select them
+      setSelectingAll(true);
+      try {
+        const filters = {};
+        if (debouncedSearch || appliedFilters.search) filters.search = debouncedSearch || appliedFilters.search;
+        if (appliedFilters.city) filters.city = appliedFilters.city;
+        if (appliedFilters.state) filters.state = appliedFilters.state;
+        if (appliedFilters.country) filters.country = appliedFilters.country;
+        if (appliedFilters.category) filters.category = appliedFilters.category;
+        if (appliedFilters.minRating) filters.minRating = appliedFilters.minRating;
+
+        const ids = await getAllCompanyIds(filters);
+        setSelectedIds(new Set(ids));
+      } catch {
+        // Fallback: select current page only
+        setSelectedIds(new Set(companies.map((c) => c.id)));
+      } finally {
+        setSelectingAll(false);
+      }
+    }
+  };
 
   // ── Delete ──
   const [deletingId, setDeletingId] = useState(null);
@@ -140,30 +225,30 @@ export default function DashboardPage() {
       setCompanyError(null);
 
       const payload = {};
-      if (appliedFilters.search) payload.search = appliedFilters.search;
+      if (debouncedSearch || appliedFilters.search) payload.search = debouncedSearch || appliedFilters.search;
       if (appliedFilters.city) payload.city = appliedFilters.city;
       if (appliedFilters.state) payload.state = appliedFilters.state;
       if (appliedFilters.country) payload.country = appliedFilters.country;
       if (appliedFilters.category) payload.category = appliedFilters.category;
       if (appliedFilters.minRating) payload.minRating = Number(appliedFilters.minRating);
 
-      const result = await fetchCompanies({ page: companyPage, pageSize: LIMIT, ...payload });
+      const result = await fetchCompanies({ page: companyPage, pageSize: COMPANY_LIMIT, ...payload });
       setCompanies(result.data || []);
-      setCompanyMeta(result.meta || { page: 1, pageSize: LIMIT, totalCount: 0, totalPages: 1 });
+      setCompanyMeta(result.meta || { page: 1, pageSize: COMPANY_LIMIT, totalCount: 0, totalPages: 1 });
     } catch (err) {
       setCompanyError(err.message || "Failed to fetch companies");
     } finally {
       setCompanyLoading(false);
     }
-  }, [companyPage, appliedFilters]);
+  }, [companyPage, appliedFilters, debouncedSearch]);
 
   // ── Fetch history ──
   const loadHistory = useCallback(async () => {
     try {
       setHistoryLoading(true);
-      const result = await fetchHistory({ page: historyPage, pageSize: LIMIT });
+      const result = await fetchHistory({ page: historyPage, pageSize: HISTORY_LIMIT });
       setHistoryData(result.data || []);
-      setHistoryMeta(result.meta || { page: 1, pageSize: LIMIT, totalCount: 0, totalPages: 1 });
+      setHistoryMeta(result.meta || { page: 1, pageSize: HISTORY_LIMIT, totalCount: 0, totalPages: 1 });
     } catch {
       // silent
     } finally {
@@ -220,10 +305,9 @@ export default function DashboardPage() {
     }
   };
 
-  const handleExportCSV = () => {
-    if (!companies.length) return;
+  const downloadCSV = (data) => {
     const headers = ["Name","Category","Address","City","State","Country","Phone","Website","Email","Rating","Total Reviews","Status"];
-    const rows = companies.map((c) =>
+    const rows = data.map((c) =>
       [c.name,c.category,c.address,c.city,c.state,c.country,c.phone,c.website,c.email,c.rating,c.totalReviews,c.status]
         .map((v) => (v == null ? "" : `"${String(v).replace(/"/g, '""')}"`)),
     );
@@ -235,6 +319,25 @@ export default function DashboardPage() {
     a.download = `mapscrape-${Date.now()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      if (selectedIds.size > 0) {
+        // Export only selected rows
+        const data = await exportCompanies({ ids: [...selectedIds] });
+        downloadCSV(data);
+      } else {
+        // Export ALL data (with current filters applied)
+        const data = await exportCompanies({ filters: appliedFilters });
+        downloadCSV(data);
+      }
+    } catch (err) {
+      console.error("Export failed:", err);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const activeFilterCount = Object.values(appliedFilters).filter(Boolean).length;
@@ -253,13 +356,40 @@ export default function DashboardPage() {
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <div>
+          <div className="flex-1">
             <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
               Google Maps Scraper
             </p>
             <h1 className="mt-0.5 text-2xl font-bold text-white sm:text-3xl">
               Scraper <span className="text-cyan-400">Dashboard</span>
             </h1>
+          </div>
+          {/* User info + Logout */}
+          <div className="flex items-center gap-3">
+            {user && (
+              <div className="hidden items-center gap-2 sm:flex">
+                <div
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-cyan-300"
+                  style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.25)" }}
+                >
+                  {user.name?.[0]?.toUpperCase() || <User className="h-3.5 w-3.5" />}
+                </div>
+                <span className="text-sm font-medium text-slate-300">{user.name}</span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="neu-btn inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-400 hover:text-red-400"
+            >
+              {loggingOut ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <LogOut className="h-3.5 w-3.5" />
+              )}
+              Logout
+            </button>
           </div>
         </header>
 
@@ -287,45 +417,32 @@ export default function DashboardPage() {
           <form onSubmit={handleScrape} className="flex flex-col gap-4 sm:flex-row sm:items-end">
             <div className="flex-1">
               <label className="mb-1.5 block text-xs font-medium text-slate-400">Business type</label>
-              <select
+              <SearchableSelect
                 value={queryType}
-                onChange={(e) => setQueryType(e.target.value)}
-                required
-                className="neu-select w-full appearance-none px-3 py-2.5 text-sm"
-              >
-                <option value="">Select business type…</option>
-                {CATEGORY_OPTIONS.map(({ label, value }) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
+                onChange={setQueryType}
+                options={CATEGORY_OPTIONS}
+                placeholder="Select business type…"
+              />
             </div>
 
             <div className="flex-1">
               <label className="mb-1.5 block text-xs font-medium text-slate-400">City / Location</label>
-              <select
+              <SearchableSelect
                 value={queryCity}
-                onChange={(e) => setQueryCity(e.target.value)}
-                required
-                className="neu-select w-full appearance-none px-3 py-2.5 text-sm"
-              >
-                <option value="">Select city…</option>
-                {CITY_OPTIONS.map((city) => (
-                  <option key={city} value={city}>{city}</option>
-                ))}
-              </select>
+                onChange={setQueryCity}
+                options={CITY_OPTIONS}
+                placeholder="Select city…"
+              />
             </div>
 
             <div className="w-full sm:w-36">
               <label className="mb-1.5 block text-xs font-medium text-slate-400">Max results</label>
-              <select
+              <SearchableSelect
                 value={maxResults}
-                onChange={(e) => setMaxResults(Number(e.target.value))}
-                className="neu-select w-full appearance-none px-3 py-2.5 text-sm"
-              >
-                {MAX_RESULTS_OPTIONS.map((n) => (
-                  <option key={n} value={n}>{n} results</option>
-                ))}
-              </select>
+                onChange={(v) => setMaxResults(Number(v))}
+                options={MAX_RESULTS_OPTIONS.map((n) => ({ label: `${n} results`, value: n }))}
+                placeholder="Select…"
+              />
             </div>
 
             <button
@@ -532,9 +649,16 @@ export default function DashboardPage() {
         </section>
 
         {/* ── Filters + Table ── */}
-        <section className="neu-card p-5 sm:p-6">
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <h2 className="flex-1 text-base font-semibold text-white">
+        <section className="neu-card overflow-hidden">
+          {/* Sticky toolbar */}
+          <div
+            className="sticky top-0 z-20 flex flex-wrap items-center gap-3 px-5 py-4 sm:px-6"
+            style={{
+              background: "#171e35",
+              borderBottom: "1px solid rgba(255,255,255,0.04)",
+            }}
+          >
+            <h2 className="text-base font-semibold text-white">
               Scraped Companies
               {companyMeta.totalCount > 0 && (
                 <span className="ml-2 text-sm font-normal text-slate-500">
@@ -542,7 +666,23 @@ export default function DashboardPage() {
                 </span>
               )}
             </h2>
+            {/* Search bar */}
+            <div className="relative flex-1 min-w-48 max-w-xs">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-600" />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search companies..."
+                className="neu-input w-full py-2 pl-9 pr-3 text-xs"
+              />
+            </div>
             <div className="flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <span className="text-xs text-cyan-400 font-medium">
+                  {selectedIds.size} selected
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => setShowFilters((v) => !v)}
@@ -562,15 +702,20 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={handleExportCSV}
-                disabled={!companies.length}
+                disabled={exporting}
                 className="neu-btn inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Download className="h-3.5 w-3.5" />
-                Export CSV
+                {exporting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+                {selectedIds.size > 0 ? `Export ${selectedIds.size} Selected` : "Export All"}
               </button>
             </div>
           </div>
 
+          <div className="px-5 py-4 sm:px-6">
           {/* Filters panel */}
           {showFilters && (
             <div className="neu-inner-panel mb-4 p-4">
@@ -601,72 +746,57 @@ export default function DashboardPage() {
 
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Category</label>
-                  <select
+                  <SearchableSelect
                     value={filters.category}
-                    onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))}
-                    className="neu-select w-full appearance-none px-3 py-2 text-xs"
-                  >
-                    <option value="">All categories</option>
-                    {CATEGORY_OPTIONS.map(({ label, value }) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setFilters((f) => ({ ...f, category: v }))}
+                    options={CATEGORY_OPTIONS}
+                    placeholder="All categories"
+                    size="sm"
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Country</label>
-                  <select
+                  <SearchableSelect
                     value={filters.country}
-                    onChange={(e) => setFilters((f) => ({ ...f, country: e.target.value }))}
-                    className="neu-select w-full appearance-none px-3 py-2 text-xs"
-                  >
-                    <option value="">All countries</option>
-                    {COUNTRY_OPTIONS.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setFilters((f) => ({ ...f, country: v }))}
+                    options={COUNTRY_OPTIONS}
+                    placeholder="All countries"
+                    size="sm"
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">State</label>
-                  <select
+                  <SearchableSelect
                     value={filters.state}
-                    onChange={(e) => setFilters((f) => ({ ...f, state: e.target.value }))}
-                    className="neu-select w-full appearance-none px-3 py-2 text-xs"
-                  >
-                    <option value="">All states</option>
-                    {INDIA_STATES.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setFilters((f) => ({ ...f, state: v }))}
+                    options={INDIA_STATES}
+                    placeholder="All states"
+                    size="sm"
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">City</label>
-                  <select
+                  <SearchableSelect
                     value={filters.city}
-                    onChange={(e) => setFilters((f) => ({ ...f, city: e.target.value }))}
-                    className="neu-select w-full appearance-none px-3 py-2 text-xs"
-                  >
-                    <option value="">All cities</option>
-                    {CITY_OPTIONS.map((city) => (
-                      <option key={city} value={city}>{city}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setFilters((f) => ({ ...f, city: v }))}
+                    options={CITY_OPTIONS}
+                    placeholder="All cities"
+                    size="sm"
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Min Rating</label>
-                  <select
+                  <SearchableSelect
                     value={filters.minRating}
-                    onChange={(e) => setFilters((f) => ({ ...f, minRating: e.target.value }))}
-                    className="neu-select w-full appearance-none px-3 py-2 text-xs"
-                  >
-                    <option value="">Any rating</option>
-                    {RATING_OPTIONS.map(({ label, value }) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setFilters((f) => ({ ...f, minRating: v }))}
+                    options={RATING_OPTIONS}
+                    placeholder="Any rating"
+                    size="sm"
+                  />
                 </div>
               </div>
 
@@ -715,6 +845,18 @@ export default function DashboardPage() {
             <table className="w-full min-w-225 text-sm">
               <thead>
                 <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "#0f1528" }}>
+                  <th className="w-10 px-3 py-3 text-center">
+                    {selectingAll ? (
+                      <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin text-cyan-400" />
+                    ) : (
+                      <input
+                        type="checkbox"
+                        checked={allSelected || pageAllSelected}
+                        onChange={toggleSelectAll}
+                        className="h-3.5 w-3.5 cursor-pointer rounded accent-cyan-500"
+                      />
+                    )}
+                  </th>
                   {["Name", "Category", "Location", "Phone", "Email", "Website", "Rating", "Status", "Action"].map((h) => (
                     <th
                       key={h}
@@ -729,7 +871,7 @@ export default function DashboardPage() {
                 {companyLoading &&
                   Array.from({ length: 6 }).map((_, i) => (
                     <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-                      {[36, 24, 32, 24, 28, 28, 14, 20, 6].map((w, j) => (
+                      {[4, 36, 24, 32, 24, 28, 28, 14, 20, 6].map((w, j) => (
                         <td key={j} className="px-4 py-3">
                           <div
                             className="h-3.5 animate-pulse rounded-md"
@@ -741,25 +883,36 @@ export default function DashboardPage() {
                   ))}
                 {companyError && !companyLoading && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-10 text-center text-red-400">
+                    <td colSpan={10} className="px-4 py-10 text-center text-red-400">
                       Failed to load data. Please try again.
                     </td>
                   </tr>
                 )}
                 {!companyLoading && !companyError && companies.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-10 text-center text-slate-600">
+                    <td colSpan={10} className="px-4 py-10 text-center text-slate-600">
                       No companies found. Start a scrape above or adjust your filters.
                     </td>
                   </tr>
                 )}
-                {!companyLoading &&
+                {!companyLoading && !companyError &&
                   companies.map((c) => (
                     <tr
                       key={c.id}
-                      style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
+                      style={{
+                        borderBottom: "1px solid rgba(255,255,255,0.03)",
+                        background: selectedIds.has(c.id) ? "rgba(6,182,212,0.04)" : undefined,
+                      }}
                       className="transition hover:bg-white/2"
                     >
+                      <td className="w-10 px-3 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(c.id)}
+                          onChange={() => toggleSelect(c.id)}
+                          className="h-3.5 w-3.5 cursor-pointer rounded accent-cyan-500"
+                        />
+                      </td>
                       <td className="max-w-70 px-4 py-3">
                         <p className="truncate font-medium text-white max-w-36">{c.name}</p>
                       </td>
@@ -904,6 +1057,7 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
+          </div>
         </section>
       </div>
     </div>

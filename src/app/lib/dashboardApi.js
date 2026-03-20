@@ -3,6 +3,7 @@ import {
   GET_HISTORY,
   CREATE_SCRAPER,
   DELETE_COMPANY,
+  EXPORT_COMPANIES,
 } from "@/utils/api";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -94,4 +95,50 @@ export async function deleteCompany(id) {
   }
 
   throw new Error(result?.message || "Delete failed");
+}
+
+/**
+ * Export companies — selected IDs or all (with current filters).
+ */
+export async function exportCompanies({ ids, filters } = {}) {
+  const data = {};
+  if (ids && ids.length > 0) data.ids = ids;
+  if (filters) {
+    if (filters.search) data.search = filters.search;
+    if (filters.city) data.city = filters.city;
+    if (filters.state) data.state = filters.state;
+    if (filters.country) data.country = filters.country;
+    if (filters.category) data.category = filters.category;
+    if (filters.minRating) data.minRating = Number(filters.minRating);
+  }
+  const res = await fetch(EXPORT_COMPANIES, buildOptions(data));
+  const result = await res.json();
+
+  if (result?.status === 200) {
+    return result.data || [];
+  }
+
+  throw new Error(result?.message || "Export failed");
+}
+
+/**
+ * Get all company IDs (for select all across pages).
+ * Uses exportCompanies API with onlyIds flag.
+ */
+export async function getAllCompanyIds(filters = {}) {
+  const data = { onlyIds: true };
+  if (filters.search) data.search = filters.search;
+  if (filters.city) data.city = filters.city;
+  if (filters.state) data.state = filters.state;
+  if (filters.country) data.country = filters.country;
+  if (filters.category) data.category = filters.category;
+  if (filters.minRating) data.minRating = Number(filters.minRating);
+  const res = await fetch(EXPORT_COMPANIES, buildOptions(data));
+  const result = await res.json();
+
+  if (result?.status === 200) {
+    return result.data || [];
+  }
+
+  throw new Error(result?.message || "Failed to fetch IDs");
 }

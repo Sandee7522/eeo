@@ -149,6 +149,74 @@ export default class ScrapServices {
     }
   }
 
+  // Get all company IDs (for select all)
+  static async getAllCompanyIds(filters = {}) {
+    try {
+      const { city, state, country, category, search, minRating } = filters;
+      const where = {
+        ...(city && { city: { contains: city } }),
+        ...(state && { state: { contains: state } }),
+        ...(country && { country: { contains: country } }),
+        ...(category && { category: { contains: category } }),
+        ...(minRating !== undefined && { rating: { gte: minRating } }),
+        ...(search && {
+          OR: [
+            { name: { contains: search } },
+            { address: { contains: search } },
+            { city: { contains: search } },
+            { website: { contains: search } },
+          ],
+        }),
+      };
+
+      const companies = await prisma.company.findMany({
+        where,
+        select: { id: true },
+      });
+
+      return companies.map((c) => c.id);
+    } catch (error) {
+      console.error("Get All IDs Error:", error);
+      throw new Error("FAILED_TO_FETCH_IDS");
+    }
+  }
+
+  // Export companies (all or by IDs)
+  static async exportCompanies({ ids, filters = {} } = {}) {
+    try {
+      const where = {};
+
+      if (ids && ids.length > 0) {
+        where.id = { in: ids };
+      } else {
+        const { city, state, country, category, search, minRating } = filters;
+        if (city) where.city = { contains: city };
+        if (state) where.state = { contains: state };
+        if (country) where.country = { contains: country };
+        if (category) where.category = { contains: category };
+        if (minRating !== undefined) where.rating = { gte: minRating };
+        if (search) {
+          where.OR = [
+            { name: { contains: search } },
+            { address: { contains: search } },
+            { city: { contains: search } },
+            { website: { contains: search } },
+          ];
+        }
+      }
+
+      const companies = await prisma.company.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+      });
+
+      return companies;
+    } catch (error) {
+      console.error("Export Companies Error:", error);
+      throw new Error("FAILED_TO_EXPORT_COMPANIES");
+    }
+  }
+
   // 🔴 Delete Company
   static async deleteCompanyById(id) {
     try {

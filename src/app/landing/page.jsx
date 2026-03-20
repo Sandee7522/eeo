@@ -141,7 +141,7 @@ export default function LandingPage() {
             </a>
             <ThemeToggle dark={dark} onToggle={toggleTheme} />
             <Link
-              href="/dashboard"
+              href="/signin"
               className="inline-flex items-center gap-1 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-90"
             >
               Get started
@@ -151,7 +151,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-2 sm:hidden">
             <ThemeToggle dark={dark} onToggle={toggleTheme} />
             <Link
-              href="/dashboard"
+              href="/signin"
               className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3 py-2 text-sm font-semibold text-white"
             >
               Start
@@ -179,7 +179,7 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link
-              href="/dashboard"
+              href="/signin"
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-3.5 text-base font-semibold text-white shadow-xl transition hover:opacity-90"
             >
               Start scraping free
@@ -257,7 +257,7 @@ export default function LandingPage() {
               </div>
             </div>
             <Link
-              href="/dashboard"
+              href="/signin"
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-3 font-semibold text-white shadow-lg transition hover:opacity-90"
             >
               Get started
@@ -282,7 +282,7 @@ export default function LandingPage() {
               Features
             </a>
             <a
-              href="/dashboard"
+              href="/signin"
               className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
             >
               Dashboard
