@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --background: #f8fafc;
+    --foreground: #0f172a;
+    --surface: #ffffff;
+    --border: #e2e8f0;
+    --muted: #64748b;
+    --card: #ffffff;
+    --card-border: rgba(226, 232, 240, 0.8);
+  }
+
+  .dark {
+    --background: #0f172a;
+    --foreground: #f1f5f9;
+    --surface: #1e293b;
+    --border: #334155;
+    --muted: #94a3b8;
+    --card: rgba(30, 41, 59, 0.7);
+    --card-border: rgba(255, 255, 255, 0.08);
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background);
+  }
+
+  :root {
+    --background: #f8fafc;
+  }
+
+  .dark {
+    --background: #12192e;
+  }
+}
+
+/* Smooth theme transitions */
+*, *::before, *::after {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+/* Override transition for animated elements */
+svg *, canvas * {
+  transition: none !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb { background: #2a3558; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #3a4a70; }
+
+/* ── Neumorphic Dark UI ── */
+.neu-card {
+  background: #171e35;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow:
+    -6px -6px 14px rgba(16, 24, 60, 0.6),
+    6px 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+.neu-input,
+.neu-select {
+  background: #12192e !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-radius: 10px;
+  color: #e2e8f0 !important;
+  box-shadow:
+    inset -2px -2px 5px rgba(16, 24, 60, 0.5),
+    inset 2px 2px 7px rgba(0, 0, 0, 0.5);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.neu-input::placeholder { color: #4a5568; }
+
+.neu-input:focus,
+.neu-select:focus {
+  outline: none;
+  border-color: rgba(6, 182, 212, 0.45) !important;
+  box-shadow:
+    inset -2px -2px 5px rgba(16, 24, 60, 0.4),
+    inset 2px 2px 6px rgba(0, 0, 0, 0.4),
+    0 0 0 2px rgba(6, 182, 212, 0.15);
+}
+
+.neu-select option {
+  background: #12192e;
+  color: #e2e8f0;
+}
+
+.neu-btn {
+  background: #171e35;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  color: #94a3b8;
+  box-shadow:
+    -3px -3px 7px rgba(16, 24, 60, 0.55),
+    3px 3px 9px rgba(0, 0, 0, 0.55);
+  transition: all 0.2s;
+}
+
+.neu-btn:hover:not(:disabled) {
+  color: #e2e8f0;
+  box-shadow:
+    -2px -2px 5px rgba(16, 24, 60, 0.45),
+    2px 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.neu-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.neu-btn-primary {
+  background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  box-shadow: 0 4px 20px rgba(6, 182, 212, 0.35);
+  transition: all 0.2s;
+}
+
+.neu-btn-primary:hover:not(:disabled) {
+  box-shadow: 0 6px 26px rgba(6, 182, 212, 0.5);
+  opacity: 0.92;
+}
+
+.neu-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.neu-inner-panel {
+  background: #12192e;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow:
+    inset -3px -3px 7px rgba(16, 24, 60, 0.45),
+    inset 3px 3px 8px rgba(0, 0, 0, 0.45);
+}

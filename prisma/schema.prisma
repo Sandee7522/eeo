@@ -8,50 +8,85 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// #################################     Users         ###############################  
-
 model User {
-  id          String       @id @default(uuid())
-  name        String
-  email       String       @unique
-  password    String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-model StateGovernment {
+model ScrapeHistory {
   id           String   @id @default(uuid())
+  query        String
+  queryType    String?
+  source       String?
 
-  stateName    String   @unique
-  stateLogo    String?
+  country      String?
+  state        String?
+  city         String?
 
-  partyName    String
-  partyFlag    String?
-  partyColor   String?
+  maxResults   Int
+  saved        Int
+  failed       Int
+  duplicates   Int      @default(0)
+  total        Int
 
-  description  String?  @db.Text
+  status       String   @default("completed")
+  errorMessage String?
+
+  retries      Int      @default(0)
+  durationSec  Int?
+
+  userId       String?
+  savedToTable String?
 
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  startedAt    DateTime?
+  endedAt      DateTime?
 }
 
-model StatePolitics {
-  id                  String   @id @default(uuid())
+model Company {
+  id           String   @id @default(uuid())
+  name         String
+  category     String?
+  address      String
+  city         String?
+  state        String?
+  country      String?
+  latitude     Float?
+  longitude    Float?
+  phone        String?
+  website      String?
+  email        String?
+  rating       Float?
+  totalReviews Int?
+  priceLevel   Int?
+  status       String?
+  description  String?
+  openingHours Json?
+  photos       Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  locationKey  String?  @unique
+}
 
-  stateName           String   @unique
+model RemoteJob {
+  id             String   @id @default(uuid())
+  jobTitle       String
+  companyName    String
+  jobUrl         String   @db.Text
+  applyUrl       String?  @db.Text
+  location       String?
+  salary         String?
+  tags           Json?
+  postedDate     String?
+  companyWebsite String?  @db.Text
+  emails         Json?
+  phoneNumbers   Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  governingParty      String
-  governingAlliance   String?
-
-  oppositionParty     String?
-  oppositionAlliance  String?
-
-  otherOpposition     String?
-
-  latestElectionYear  Int?
-
-  stateLogo           String?
-
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  @@unique([jobTitle, companyName])
 }
