@@ -12,6 +12,7 @@ const exportSchema = z.object({
   country: z.string().max(100).optional(),
   category: z.string().max(100).optional(),
   minRating: z.coerce.number().min(0).max(5).optional(),
+  hasWebsite: z.enum(["yes", "no"]).optional(),
 });
 
 export async function POST(req) {

@@ -3,16 +3,8 @@ import { NextResponse } from "next/server";
 import { verifyToken } from "@/utils/jwt";
 import { z } from "zod";
 
-const getScrapedDataSchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(5),
-  search: z.string().max(200).optional(),
-  city: z.string().max(100).optional(),
-  state: z.string().max(100).optional(),
-  country: z.string().max(100).optional(),
-  category: z.string().max(100).optional(),
-  minRating: z.coerce.number().min(0).max(5).optional(),
-  hasWebsite: z.enum(["yes", "no"]).optional(),
+const schema = z.object({
+  id: z.string().uuid("id must be a valid UUID"),
 });
 
 export async function POST(req) {
@@ -26,8 +18,7 @@ export async function POST(req) {
     }
 
     const body = await req.json();
-
-    const parsed = getScrapedDataSchema.safeParse(body);
+    const parsed = schema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
         { status: 400, success: false, errors: parsed.error.flatten().fieldErrors },
@@ -35,21 +26,20 @@ export async function POST(req) {
       );
     }
 
-    const { page, pageSize, ...filters } = parsed.data;
-    const result = await ScrapServices.getCompanies({ ...filters, page, limit: pageSize });
+    const deleted = await ScrapServices.resetOutreachById(parsed.data.id);
 
     return NextResponse.json({
       status: 200,
       success: true,
-      data: result.data,
-      meta: {
-        page: result.pagination.page,
-        pageSize: result.pagination.limit,
-        totalCount: result.pagination.total,
-        totalPages: result.pagination.totalPages,
-      },
+      message: `Outreach for "${deleted?.name ?? "unknown"}" removed successfully`,
     });
   } catch (err) {
+    if (err.message === "NOT_FOUND") {
+      return NextResponse.json(
+        { status: 404, success: false, message: "Company not found" },
+        { status: 404 }
+      );
+    }
     return NextResponse.json(
       { status: 500, success: false, message: "Internal server error" },
       { status: 500 }

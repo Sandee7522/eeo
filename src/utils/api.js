@@ -1,5 +1,6 @@
 const BASE = "/api/googlemapScraper";
 const AUTH = "/api/auth";
+const OUTREACH = "/api/outreach";
 
 // ── Auth ──
 export const SIGNIN = `${AUTH}/signin`;
@@ -13,4 +14,11 @@ export const GET_COMPANIES = `${BASE}/getScrapedData`;
 export const GET_HISTORY = `${BASE}/getHistory`;
 export const CREATE_SCRAPER = `${BASE}/createScraper`;
 export const DELETE_COMPANY = `${BASE}/deleteCompany`;
+export const DELETE_HISTORY = `${BASE}/deleteHistory`;
 export const EXPORT_COMPANIES = `${BASE}/exportCompanies`;
+
+// ── Outreach ──
+export const RUN_OUTREACH = `${OUTREACH}/run`;
+export const OUTREACH_STATS = `${OUTREACH}/stats`;
+export const OUTREACH_HISTORY = `${OUTREACH}/history`;
+export const DELETE_OUTREACH = `${OUTREACH}/delete`;

@@ -1,18 +1,11 @@
-import ScrapServices from "@/services/scrapeService";
 import { NextResponse } from "next/server";
 import { verifyToken } from "@/utils/jwt";
 import { z } from "zod";
 
-const getScrapedDataSchema = z.object({
+const historySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(5),
-  search: z.string().max(200).optional(),
-  city: z.string().max(100).optional(),
-  state: z.string().max(100).optional(),
-  country: z.string().max(100).optional(),
-  category: z.string().max(100).optional(),
-  minRating: z.coerce.number().min(0).max(5).optional(),
-  hasWebsite: z.enum(["yes", "no"]).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  status: z.enum(["sent", "failed", "pending"]).optional(),
 });
 
 export async function POST(req) {
@@ -25,9 +18,8 @@ export async function POST(req) {
       );
     }
 
-    const body = await req.json();
-
-    const parsed = getScrapedDataSchema.safeParse(body);
+    const body = await req.json().catch(() => ({}));
+    const parsed = historySchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
         { status: 400, success: false, errors: parsed.error.flatten().fieldErrors },
@@ -35,8 +27,12 @@ export async function POST(req) {
       );
     }
 
-    const { page, pageSize, ...filters } = parsed.data;
-    const result = await ScrapServices.getCompanies({ ...filters, page, limit: pageSize });
+    const { getOutreachHistory } = require("@/services/outreachService");
+    const result = await getOutreachHistory({
+      page: parsed.data.page,
+      limit: parsed.data.pageSize,
+      status: parsed.data.status,
+    });
 
     return NextResponse.json({
       status: 200,
@@ -50,6 +46,7 @@ export async function POST(req) {
       },
     });
   } catch (err) {
+    console.error("outreach/history error:", err);
     return NextResponse.json(
       { status: 500, success: false, message: "Internal server error" },
       { status: 500 }
