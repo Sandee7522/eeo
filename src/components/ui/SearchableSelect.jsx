@@ -17,6 +17,7 @@ export default function SearchableSelect({
   placeholder = "Select…",
   className = "",
   size = "md",
+  disabled = false,
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -76,8 +77,9 @@ export default function SearchableSelect({
       {/* Trigger button */}
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`neu-select flex w-full items-center gap-2 appearance-none px-3 ${btnPy} ${btnText}`}
+        onClick={() => !disabled && setOpen((v) => !v)}
+        disabled={disabled}
+        className={`neu-select flex w-full items-center gap-2 appearance-none px-3 ${btnPy} ${btnText} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
       >
         <span className={`flex-1 truncate text-left ${!selected ? "text-slate-600" : ""}`}>
           {selected ? selected.label : placeholder}
@@ -127,6 +129,19 @@ export default function SearchableSelect({
 
           {/* Options list with scroll */}
           <div className="max-h-48 overflow-y-auto overscroll-contain">
+            {/* "All" option to clear selection */}
+            {value && (
+              <button
+                type="button"
+                onClick={() => handleSelect("")}
+                className="flex w-full items-center px-3 py-2 text-left text-xs text-slate-500 hover:text-white transition-colors"
+                style={{ background: "transparent" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                All Select
+              </button>
+            )}
             {filtered.length === 0 && (
               <div className="px-3 py-3 text-center text-xs text-slate-600">
                 No results found

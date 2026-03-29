@@ -14,6 +14,9 @@ const createScraperSchema = z.object({
     .min(1, "maxResults must be at least 1")
     .max(100, "maxResults cannot exceed 100")
     .default(20),
+  scrapeWebsites: z.boolean().optional().default(false),
+  onlyWithoutWebsite: z.boolean().optional().default(false),
+  onlyWithEmail: z.boolean().optional().default(false),
 });
 
 export async function POST(req) {
@@ -36,8 +39,8 @@ export async function POST(req) {
       );
     }
 
-    const { query, maxResults } = parsed.data;
-    const result = await scrapeGoogleMaps(query, maxResults);
+    const { query, maxResults, scrapeWebsites, onlyWithoutWebsite, onlyWithEmail } = parsed.data;
+    const result = await scrapeGoogleMaps(query, maxResults, { scrapeWebsites, onlyWithoutWebsite, onlyWithEmail });
 
     return NextResponse.json({
       status: 200,

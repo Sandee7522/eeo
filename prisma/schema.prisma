@@ -58,8 +58,10 @@ model Company {
   latitude     Float?
   longitude    Float?
   phone        String?
+  phoneNumbers Json?
   website      String?
   email        String?
+  emails       Json?
   rating       Float?
   totalReviews Int?
   priceLevel   Int?
@@ -70,6 +72,15 @@ model Company {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   locationKey  String?  @unique
+
+  // ── Outreach fields ──
+  isLead       Boolean  @default(false)
+  mailSent     Boolean  @default(false)
+  mailSubject  String?  @db.Text
+  mailBody     String?  @db.LongText
+  mailSummary  String?  @db.Text
+  mailError    String?  @db.Text
+  mailSentAt   DateTime?
 }
 
 model RemoteJob {

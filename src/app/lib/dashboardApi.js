@@ -3,7 +3,12 @@ import {
   GET_HISTORY,
   CREATE_SCRAPER,
   DELETE_COMPANY,
+  DELETE_HISTORY,
   EXPORT_COMPANIES,
+  RUN_OUTREACH,
+  OUTREACH_STATS,
+  OUTREACH_HISTORY,
+  DELETE_OUTREACH,
 } from "@/utils/api";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -72,8 +77,12 @@ export async function fetchHistory({ page = 1, pageSize = 5, search, ...filters 
 /**
  * Start a new Google Maps scrape.
  */
-export async function startScrape({ query, maxResults }) {
-  const res = await fetch(CREATE_SCRAPER, buildOptions({ query, maxResults }));
+export async function startScrape({ query, maxResults, scrapeWebsites, onlyWithoutWebsite, onlyWithEmail }) {
+  const data = { query, maxResults };
+  if (scrapeWebsites) data.scrapeWebsites = true;
+  if (onlyWithoutWebsite) data.onlyWithoutWebsite = true;
+  if (onlyWithEmail) data.onlyWithEmail = true;
+  const res = await fetch(CREATE_SCRAPER, buildOptions(data));
   const result = await res.json();
 
   if (result?.status === 200) {
@@ -98,6 +107,34 @@ export async function deleteCompany(id) {
 }
 
 /**
+ * Delete a scrape history entry by ID.
+ */
+export async function deleteHistory(id) {
+  const res = await fetch(DELETE_HISTORY, buildOptions({ id }));
+  const result = await res.json();
+
+  if (result?.status === 200) {
+    return result;
+  }
+
+  throw new Error(result?.message || "Delete failed");
+}
+
+/**
+ * Remove outreach data for a company (reset lead status).
+ */
+export async function deleteOutreach(id) {
+  const res = await fetch(DELETE_OUTREACH, buildOptions({ id }));
+  const result = await res.json();
+
+  if (result?.status === 200) {
+    return result;
+  }
+
+  throw new Error(result?.message || "Delete failed");
+}
+
+/**
  * Export companies — selected IDs or all (with current filters).
  */
 export async function exportCompanies({ ids, filters } = {}) {
@@ -110,6 +147,7 @@ export async function exportCompanies({ ids, filters } = {}) {
     if (filters.country) data.country = filters.country;
     if (filters.category) data.category = filters.category;
     if (filters.minRating) data.minRating = Number(filters.minRating);
+    if (filters.hasWebsite) data.hasWebsite = filters.hasWebsite;
   }
   const res = await fetch(EXPORT_COMPANIES, buildOptions(data));
   const result = await res.json();
@@ -141,4 +179,57 @@ export async function getAllCompanyIds(filters = {}) {
   }
 
   throw new Error(result?.message || "Failed to fetch IDs");
+}
+
+// ─── Outreach API functions ─────────────────────────────────────────────────
+
+/**
+ * Run outreach — detect leads, generate emails via Gemini, send via SMTP.
+ */
+export async function runOutreach({ limit = 10, emailType = "job_application" } = {}) {
+  const res = await fetch(RUN_OUTREACH, buildOptions({ limit, emailType }));
+  const result = await res.json();
+
+  if (result?.status === 200) {
+    return result.data;
+  }
+
+  throw new Error(result?.message || "Outreach failed");
+}
+
+/**
+ * Get outreach stats (total leads, sent, failed, pending).
+ */
+export async function fetchOutreachStats() {
+  const res = await fetch(OUTREACH_STATS, buildOptions({}));
+  const result = await res.json();
+
+  if (result?.status === 200) {
+    return result.data;
+  }
+
+  throw new Error(result?.message || "Failed to fetch outreach stats");
+}
+
+/**
+ * Get outreach history with pagination and status filter.
+ */
+export async function fetchOutreachHistory({ page = 1, pageSize = 10, status } = {}) {
+  const data = { page, pageSize };
+  if (status) data.status = status;
+  const res = await fetch(OUTREACH_HISTORY, buildOptions(data));
+  const result = await res.json();
+
+  if (result?.status === 200) {
+    return {
+      data: result.data || [],
+      meta: result.meta,
+    };
+  }
+
+  if (result?.status === 404) {
+    return { data: [], meta: result.meta };
+  }
+
+  throw new Error(result?.message || "Failed to fetch outreach history");
 }

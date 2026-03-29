@@ -3,6 +3,7 @@
 
 const puppeteer = require("puppeteer");
 const { PrismaClient } = require("@prisma/client");
+const { Country, State } = require("country-state-city");
 
 const prisma = new PrismaClient();
 
@@ -33,22 +34,105 @@ function buildLocationKey(latitude, longitude, name) {
 }
 
 // Parse city/state/country from address string
+// Build state lookup from all countries: state name (lowercase) → { stateName, countryName }
+const ALL_STATES_MAP = new Map();
+for (const country of Country.getAllCountries()) {
+  for (const state of State.getStatesOfCountry(country.isoCode)) {
+    ALL_STATES_MAP.set(state.name.toLowerCase(), {
+      stateName: state.name,
+      countryName: country.name,
+    });
+  }
+}
+
 function parseAddress(address) {
   if (!address) return { city: null, state: null, country: null };
+
   const parts = address
     .split(",")
     .map((p) => p.trim())
     .filter(Boolean);
-  const country = parts.length > 0 ? parts[parts.length - 1] : null;
-  const state   = parts.length > 1 ? parts[parts.length - 2] : null;
-  const city    = parts.length > 2 ? parts[parts.length - 3] : null;
+
+  let city = null;
+  let state = null;
+  let country = null;
+
+  // Last part might be country or "State Pincode"
+  // Work backwards to identify state and city
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i];
+    const clean = part.replace(/\d{5,}/g, "").trim(); // remove pincode/zipcode
+
+    if (!country && /^(india|usa|united states|united kingdom|canada|australia|germany|france|uae|singapore|japan)$/i.test(clean)) {
+      country = clean;
+      continue;
+    }
+
+    if (!state) {
+      // Check if this part contains a known state name
+      const lower = clean.toLowerCase();
+      if (ALL_STATES_MAP.has(lower)) {
+        const match = ALL_STATES_MAP.get(lower);
+        state = match.stateName;
+        if (!country) country = match.countryName;
+        continue;
+      }
+      // Check if last part has "State Pincode/Zipcode" format (e.g., "Uttar Pradesh 201309")
+      const stateMatch = part.match(/^([a-zA-Z\s&]+?)\s*\d{4,}$/);
+      if (stateMatch) {
+        const stLower = stateMatch[1].trim().toLowerCase();
+        if (ALL_STATES_MAP.has(stLower)) {
+          const match = ALL_STATES_MAP.get(stLower);
+          state = match.stateName;
+          if (!country) country = match.countryName;
+          continue;
+        }
+      }
+    }
+
+    if (!city && state) {
+      // First meaningful part before state = city
+      if (clean.length > 1) {
+        city = clean;
+        break;
+      }
+    }
+  }
+
+  // Fallback: if no state matched, use old logic
+  if (!state && !city) {
+    const last = parts[parts.length - 1]?.replace(/\d{5,}/g, "").trim();
+    const secondLast = parts.length > 1 ? parts[parts.length - 2]?.replace(/\d{5,}/g, "").trim() : null;
+    const thirdLast = parts.length > 2 ? parts[parts.length - 3]?.trim() : null;
+
+    // If no country detected, last part could be state+pincode
+    if (!country) {
+      state = last || null;
+      city = secondLast || null;
+    } else {
+      state = secondLast || null;
+      city = thirdLast || null;
+    }
+  }
+
+  // Auto-detect country from state if not found
+  if (!country && state && ALL_STATES_MAP.has(state.toLowerCase())) {
+    country = ALL_STATES_MAP.get(state.toLowerCase()).countryName;
+  }
+
   return { city, state, country };
 }
 
 async function scrapeGoogleMaps(
   SEARCH_QUERY = "restaurants in Mumbai",
   MAX_RESULTS = 100,
+  options = {},
 ) {
+  const {
+    scrapeWebsites: SCRAPE_WEBSITES = false,
+    onlyWithoutWebsite: ONLY_WITHOUT_WEBSITE = false,
+    onlyWithEmail: ONLY_WITH_EMAIL = false,
+  } = options;
   const startedAt = new Date();
   console.log(`🔍 Searching Google Maps for: "${SEARCH_QUERY}"`);
   console.log(`📦 Target results: ${MAX_RESULTS}`);
@@ -145,11 +229,18 @@ async function scrapeGoogleMaps(
           getText('[class*="fontBodyMedium"] button') ||
           null;
 
-        const address =
-          getText('[data-item-id="address"]') ||
-          getText('button[data-item-id="address"]') ||
-          getText('[class*="address"]') ||
-          null;
+        // Full address: prefer aria-label (has complete address), fallback to text content
+        const addressEl = document.querySelector('[data-item-id="address"]') ||
+          document.querySelector('button[data-item-id="address"]');
+        let address = null;
+        if (addressEl) {
+          // aria-label has the full untruncated address
+          address = addressEl.getAttribute("aria-label")?.replace(/^Address:\s*/i, "").trim() ||
+            addressEl.textContent?.trim() || null;
+        }
+        if (!address) {
+          address = getText('[class*="address"]');
+        }
 
         const phoneEl = document.querySelector('[data-tooltip="Copy phone number"]');
         const phone = phoneEl
@@ -202,21 +293,140 @@ async function scrapeGoogleMaps(
         };
       });
 
-      // Visit website to find email if still missing
-      if (!data.email && data.website) {
-        try {
-          await page.goto(data.website, { waitUntil: "domcontentloaded", timeout: 12000 });
-          data.email = await page.evaluate(() => {
-            const el = document.querySelector('a[href^="mailto:"]');
-            if (el) return el.href.replace("mailto:", "").split("?")[0].trim();
-            const m = (document.body.innerText || "").match(
-              /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/,
-            );
-            return m ? m[0] : null;
+      // Visit website to find emails & phone numbers
+      data.allEmails = [];
+      data.allPhones = [];
+
+      if ((SCRAPE_WEBSITES || ONLY_WITH_EMAIL) && data.website) {
+        const baseUrl = data.website.replace(/\/+$/, "");
+        const pagesToTry = [
+          baseUrl,
+          `${baseUrl}/contact`,
+          `${baseUrl}/contact-us`,
+          `${baseUrl}/about`,
+          `${baseUrl}/about-us`,
+        ];
+
+        const FAKE_EMAIL_PATTERNS = [
+          "example.com", "sentry.io", "wixpress", "wordpress",
+          "@2x", "@3x", "noreply@", "no-reply@", "donotreply@",
+          "test@", "user@", "admin@localhost", "schema.org",
+          "googleapis.com", "cloudflare.com", "w3.org",
+        ];
+
+        const extractContactsFromPage = async () => {
+          return page.evaluate(() => {
+            const emails = new Set();
+            const phones = new Set();
+
+            // ── Extract emails ──
+            // mailto: links
+            document.querySelectorAll('a[href^="mailto:"]').forEach((a) => {
+              const email = a.href.replace("mailto:", "").split("?")[0].trim().toLowerCase();
+              if (email && email.includes("@")) emails.add(email);
+            });
+
+            // Regex on visible text
+            const text = document.body.innerText || "";
+            const emailMatches = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g) || [];
+            emailMatches.forEach((e) => emails.add(e.toLowerCase()));
+
+            // ── Extract phone numbers ──
+            // tel: links (highest priority)
+            document.querySelectorAll('a[href^="tel:"]').forEach((a) => {
+              let num = a.href.replace("tel:", "").trim();
+              if (num) phones.add(num);
+            });
+
+            // Regex for phone numbers with country codes
+            const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{2,4}[-.\s]?\d{2,4}(?:[-.\s]?\d{1,4})?/g;
+            const phoneMatches = text.match(phoneRegex) || [];
+            phoneMatches.forEach((p) => {
+              const digits = p.replace(/\D/g, "");
+              // Only keep numbers with 10-15 digits (valid phone range)
+              if (digits.length >= 10 && digits.length <= 15) {
+                phones.add(p.trim());
+              }
+            });
+
+            return {
+              emails: [...emails],
+              phones: [...phones],
+            };
           });
-        } catch {
-          // website visit failed — keep null
+        };
+
+        for (const pageUrl of pagesToTry) {
+          try {
+            console.log(`    🌐 Checking: ${pageUrl}`);
+            const resp = await page.goto(pageUrl, { waitUntil: "domcontentloaded", timeout: 10000 });
+            if (!resp || resp.status() >= 400) continue;
+
+            const { emails, phones } = await extractContactsFromPage();
+
+            // Filter valid emails
+            for (const email of emails) {
+              const isFake = FAKE_EMAIL_PATTERNS.some((p) => email.includes(p));
+              if (!isFake && !data.allEmails.includes(email)) {
+                data.allEmails.push(email);
+              }
+            }
+
+            // Normalize & dedupe phones
+            for (const phone of phones) {
+              const normalized = phone.replace(/[^\d+]/g, "");
+              if (!data.allPhones.some((p) => p.replace(/[^\d+]/g, "") === normalized)) {
+                data.allPhones.push(phone);
+              }
+            }
+          } catch {
+            // page load failed — try next
+          }
         }
+
+        // Last resort: auto-discover contact page from homepage links
+        if (data.allEmails.length === 0) {
+          try {
+            await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 10000 });
+            const contactLink = await page.evaluate(() => {
+              const links = Array.from(document.querySelectorAll("a"));
+              for (const a of links) {
+                const text = (a.textContent || "").toLowerCase();
+                const href = a.href || "";
+                if ((text.includes("contact") || text.includes("get in touch") || text.includes("reach us")) && href.startsWith("http")) {
+                  return href;
+                }
+              }
+              return null;
+            });
+
+            if (contactLink) {
+              console.log(`    🔗 Found contact link: ${contactLink}`);
+              const resp = await page.goto(contactLink, { waitUntil: "domcontentloaded", timeout: 10000 });
+              if (resp && resp.status() < 400) {
+                const { emails, phones } = await extractContactsFromPage();
+                for (const email of emails) {
+                  const isFake = FAKE_EMAIL_PATTERNS.some((p) => email.includes(p));
+                  if (!isFake && !data.allEmails.includes(email)) data.allEmails.push(email);
+                }
+                for (const phone of phones) {
+                  const normalized = phone.replace(/[^\d+]/g, "");
+                  if (!data.allPhones.some((p) => p.replace(/[^\d+]/g, "") === normalized)) data.allPhones.push(phone);
+                }
+              }
+            }
+          } catch {
+            // contact page discovery failed
+          }
+        }
+
+        // Set primary email from website if Maps didn't have one
+        if (!data.email && data.allEmails.length > 0) {
+          data.email = data.allEmails[0];
+        }
+
+        if (data.allEmails.length > 0) console.log(`    📧 Emails: ${data.allEmails.join(", ")}`);
+        if (data.allPhones.length > 0) console.log(`    📞 Phones: ${data.allPhones.join(", ")}`);
       }
 
       const currentUrl = page.url();
@@ -232,6 +442,24 @@ async function scrapeGoogleMaps(
 
       if (!locationKey) {
         console.warn(`  ⚠️  Could not build locationKey, skipping`);
+        failed++;
+        continue;
+      }
+
+      if (!data.phone) {
+        console.warn(`  ⚠️  No phone number for "${data.name}", skipping`);
+        failed++;
+        continue;
+      }
+
+      if (ONLY_WITHOUT_WEBSITE && data.website) {
+        console.warn(`  ⏭️  Filter: "${data.name}" has a website, skipping`);
+        failed++;
+        continue;
+      }
+
+      if (ONLY_WITH_EMAIL && !data.email) {
+        console.warn(`  ⚠️  Campaign mode: No email for "${data.name}", skipping`);
         failed++;
         continue;
       }
@@ -257,8 +485,10 @@ async function scrapeGoogleMaps(
             city, state, country,
             latitude, longitude,
             phone: data.phone ?? null,
+            phoneNumbers: data.allPhones?.length > 0 ? data.allPhones : null,
             website: data.website ?? null,
             email: data.email ?? null,
+            emails: data.allEmails?.length > 0 ? data.allEmails : null,
             rating: data.rating ?? null,
             totalReviews: data.totalReviews ?? null,
             priceLevel: data.priceLevel ?? null,
@@ -311,7 +541,13 @@ async function scrapeGoogleMaps(
     console.error(`⚠️  Failed to save scrape history: ${err.message}`);
   }
 
-  return { saved, failed, duplicates, total: toProcess.length, exhausted, foundCount: placeLinks.length, durationSec };
+  return {
+    saved, failed, duplicates,
+    total: toProcess.length,
+    exhausted,
+    foundCount: placeLinks.length,
+    durationSec,
+  };
 }
 
 module.exports = { scrapeGoogleMaps };
